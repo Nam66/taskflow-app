@@ -1,0 +1,56 @@
+services:
+  app:
+    build: .
+    container_name: taskflow_app
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    env_file:
+      - .env
+    ports:
+      - "${APP_PORT:-8010}:8000"
+    environment:
+      APP_ENV: local
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-taskflow}
+      DB_USERNAME: ${DB_USERNAME:-taskflow}
+      DB_PASSWORD: ${DB_PASSWORD:-taskflow_local}
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    image: node:22-alpine
+    container_name: taskflow_frontend
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - taskflow_node_modules:/var/www/html/node_modules
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+
+  mysql:
+    image: mysql:8.0
+    container_name: taskflow_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-taskflow}
+      MYSQL_USER: ${DB_USERNAME:-taskflow}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-taskflow_local}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-taskflow_root_local}
+    ports:
+      - "${DB_FORWARD_PORT:-3307}:3306"
+    volumes:
+      - taskflow_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  taskflow_mysql_data:
+  taskflow_node_modules:
